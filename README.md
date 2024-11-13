@@ -1,0 +1,372 @@
+# 스프링 부트  JPA, QueryDSL, Liquibase. MapStruct , 타임리프 기반 예제 프로젝트
+
+이 프로젝트는 스프링 부트  JPA, QueryDSL, Liquibase. MapStruct 기반 프로젝트입니다. 
+
+## 프로젝트 개요
+
+1. **JPA** - 데이터베이스 엑서스를 JPA 리포지토리를 이용 CRUD 작성
+
+2. **QueryDSL** - 데이터베이스 엑서스를 QueryDSL 의존성을 이용 CRUD 작성
+
+3. **Liquibase** - Database 버전 관리 모듈 
+
+4. **MapStruct** - 엔티티 DTO간 변환 작업을 위해 사용
+   
+   
+  
+# MySQL 데이터베이스 및 사용자 설정 가이드
+
+이 가이드는 MySQL 데이터베이스와 사용자 계정을 특정 권한으로 생성하는 방법에 대한 단계별 설명을 제공합니다.
+
+## 사전 준비 사항
+- MySQL이 시스템에 설치되어 있고 MySQL 서버가 실행 중인지 확인하세요.
+- 데이터베이스와 사용자 계정을 생성하기 위해 루트 사용자 비밀번호가 필요합니다.
+
+## 데이터베이스 및 사용자 생성 단계
+
+### 1단계: MySQL에 로그인
+루트 사용자로 MySQL에 로그인하려면 터미널에서 다음 명령어를 실행하세요:
+
+```bash
+mysql -u root -p
+```
+
+루트 사용자 비밀번호를 입력하라는 메시지가 나타납니다.
+
+### 2단계: 데이터베이스 생성
+로그인한 후 새로운 데이터베이스를 생성합니다. 여기서는 `klaatus`라는 이름의 데이터베이스를 예제로 사용하겠습니다.
+
+```sql
+CREATE DATABASE lab;
+```
+
+### 3단계: 사용자 생성 및 권한 부여
+이제 새로운 MySQL 사용자를 생성하고, 방금 생성한 데이터베이스에 대한 권한을 부여합니다. `klaatus`와 `1234`를 원하는 사용자 이름과 비밀번호로 대체하여 사용하세요.
+
+```sql
+CREATE USER 'klaatus'@'localhost' IDENTIFIED BY '1234';
+GRANT ALL PRIVILEGES ON lab.* TO 'klaatus'@'localhost';
+FLUSH PRIVILEGES;
+```
+
+이 명령어는 `klaatus`라는 사용자를 생성하고 `lab` 데이터베이스에 대한 모든 권한을 부여합니다.
+
+### 4단계: MySQL에서 로그아웃
+모든 작업이 완료되면 다음 명령어로 MySQL에서 로그아웃할 수 있습니다:
+
+```sql
+EXIT;
+```
+
+### 추가 참고 사항
+- 사용자 및 데이터베이스 이름은 고유해야 하므로 필요에 따라 수정하세요.
+- 생성한 사용자로 데이터베이스에 접속하려면 다음 명령어를 사용하세요:
+
+```bash
+mysql -u klaatus -p
+```
+
+비밀번호 입력 시 `1234`를 입력하여 로그인합니다.
+
+## 문제 해결
+- 문제가 발생할 경우 MySQL이 실행 중인지, 사용자가 데이터베이스와 사용자 생성을 위한 권한을 가지고 있는지 확인하세요.
+- 사용자가 모든 호스트에서 접근할 수 있도록 하려면 `localhost`를 `%`로 변경할 수 있지만, 보안 위험이 있을 수 있습니다.
+
+---
+
+이 단계들을 완료하면 MySQL 데이터베이스와 사용자가 성공적으로 설정됩니다!
+
+
+# 게시판 애플리케이션
+
+이 프로젝트는 Spring Boot 기반의 게시판 애플리케이션으로, MySQL 데이터베이스와 Liquibase를 사용하여 데이터베이스 마이그레이션을 관리합니다.
+
+## 설정 파일 (`application.yml`)
+
+아래는 애플리케이션 설정 파일인 `application.yml`의 주요 설정에 대한 설명입니다.
+
+```yaml
+spring:
+  application:
+    name: board  # 애플리케이션 이름 설정
+
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver  # MySQL 데이터베이스 드라이버 설정
+    url: jdbc:mysql://localhost:3306/lab?useSSL=false&serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+    # 데이터베이스 URL 설정
+    # - useSSL=false: SSL 연결 비활성화
+    # - serverTimezone=Asia/Seoul: 서버 시간대를 'Asia/Seoul'로 설정
+    # - characterEncoding=UTF-8: UTF-8 인코딩 사용
+    username: klaatus  # 데이터베이스 사용자 이름
+    password: 1234  # 데이터베이스 비밀번호
+
+  jpa:
+    open-in-view: true  # 웹 환경에서 지연 로딩 문제 해결을 위해 뷰 레이어까지 영속성 컨텍스트 열어둠
+    hibernate:
+      ddl-auto: none  # 스키마 자동 생성 비활성화 (Liquibase로 스키마 관리)
+    show-sql: true  # Hibernate가 실행하는 SQL 쿼리를 로그로 출력
+    properties:
+      hibernate.format_sql: true  # SQL 쿼리를 가독성 있게 포맷하여 출력
+      dialect: org.hibernate.dialect.MySQL8InnoDBDialect  # MySQL8 InnoDB용 Hibernate 다이얼렉트 설정
+
+  liquibase:
+    change-log: classpath:/db/changelog/db.changelog-master.xml  # Liquibase 체인지 로그 파일 경로
+    enabled: true  # Liquibase를 활성화하여 데이터베이스 마이그레이션 수행
+
+logging:
+  level:
+    root: INFO  # 기본 로깅 레벨을 INFO로 설정
+    org.springframework.web: DEBUG  # Spring Web 모듈에 대한 디버그 레벨 로깅 활성화
+```
+
+# Spring Boot 프로젝트 빌드 설정
+
+이 문서는 `build.gradle` 파일의 설정에 대한 설명입니다. 이 설정 파일은 Spring Boot 애플리케이션에 필요한 의존성 및 플러그인들을 포함하고 있으며, Lombok, MapStruct, QueryDSL, Liquibase 등을 활용하여 개발 환경을 구성합니다.
+
+## build.gradle 파일
+
+### 플러그인 설정
+
+```gradle
+plugins {
+    id 'java'  // Java 플러그인 추가
+    id 'org.springframework.boot' version '3.3.5'  // Spring Boot 플러그인 추가
+    id 'io.spring.dependency-management' version '1.1.6'  // Spring 의존성 관리 플러그인
+}
+```
+
+### 프로젝트 정보
+
+```gradle
+group = 'com.lab'  // 프로젝트 그룹 설정
+version = '0.0.1-SNAPSHOT'  // 버전 설정
+```
+
+### 자바 버전 설정
+
+```gradle
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)  // 자바 17 버전 사용
+    }
+}
+```
+
+- **Java 17**: 프로젝트에서 Java 17을 사용하도록 설정합니다.
+
+### 컴파일 전용 설정
+
+```gradle
+configurations {
+    compileOnly {
+        extendsFrom annotationProcessor  // Lombok과 같은 애노테이션 프로세서를 포함하는 설정 확장
+    }
+}
+```
+
+- **compileOnly**: 컴파일 시에만 필요한 의존성을 설정합니다. Lombok과 같은 애노테이션 프로세서를 포함합니다.
+
+### 저장소 설정
+
+```gradle
+repositories {
+    mavenCentral()  // Maven Central 저장소 사용
+}
+```
+
+- **mavenCentral**: 프로젝트에서 필요한 라이브러리를 Maven Central에서 다운로드합니다.
+
+### 의존성 설정
+
+```gradle
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'  // JPA Starter
+    implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'  // Thymeleaf Starter
+    implementation 'org.springframework.boot:spring-boot-starter-web'  // Web Starter
+    compileOnly 'org.projectlombok:lombok'  // Lombok (컴파일 전용)
+    developmentOnly 'org.springframework.boot:spring-boot-devtools'  // 개발 도구
+    runtimeOnly 'com.mysql:mysql-connector-j'  // MySQL 커넥터
+    annotationProcessor 'org.projectlombok:lombok'  // Lombok 애노테이션 프로세서
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'  // 테스트 라이브러리
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'  // JUnit 플랫폼 런처
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.6.0'  // OpenAPI 문서화
+
+    implementation 'org.mapstruct:mapstruct:1.5.5.Final'  // MapStruct 라이브러리
+    annotationProcessor 'org.mapstruct:mapstruct-processor:1.5.5.Final'  // MapStruct 애노테이션 프로세서
+    annotationProcessor 'org.projectlombok:lombok-mapstruct-binding:0.2.0'  // Lombok과 MapStruct 바인딩
+
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.15.0'  // Jackson JSON 라이브러리
+
+    implementation 'org.liquibase:liquibase-core:4.30.0'  // Liquibase 마이그레이션 라이브러리
+
+    implementation 'com.querydsl:querydsl-jpa:5.1.0:jakarta'  // QueryDSL JPA 지원
+    annotationProcessor "com.querydsl:querydsl-apt:5.1.0:jakarta"  // QueryDSL APT
+    annotationProcessor "jakarta.annotation:jakarta.annotation-api"  // Jakarta 애노테이션
+    annotationProcessor "jakarta.persistence:jakarta.persistence-api"  // Jakarta Persistence 애노테이션
+
+    testCompileOnly 'org.projectlombok:lombok'  // 테스트 시 Lombok 컴파일 전용
+    testAnnotationProcessor 'org.projectlombok:lombok'  // Lombok 애노테이션 프로세서 (테스트용)
+}
+
+
+```
+### QueryDSL 생성 소스 디렉토리 설정
+
+```gradle
+def generatedDir = file("build/generated/sources/annotationProcessor/java/main")
+```
+
+- **generatedDir**: QueryDSL 애노테이션 프로세서가 생성한 소스 파일을 저장할 디렉토리입니다. `build/generated/sources/annotationProcessor/java/main` 경로를 사용하여 설정됩니다.
+
+### 소스 세트에 생성 디렉토리 추가
+
+```gradle
+sourceSets {
+    main.java.srcDirs += [ generatedDir ]
+}
+```
+
+- **sourceSets**: `main` 소스 세트에 `generatedDir` 디렉토리를 추가하여 QueryDSL에서 생성된 소스 파일을 컴파일 경로에 포함시킵니다.
+
+### 컴파일 시 생성 소스 출력 디렉토리 설정
+
+```gradle
+compileJava {
+    options.getGeneratedSourceOutputDirectory().set(generatedDir)
+}
+```
+
+- **compileJava**: 자바 컴파일 태스크 설정으로, 애노테이션 프로세서가 생성한 소스 파일을 `generatedDir` 디렉토리에 저장하도록 지정합니다.
+
+### 애노테이션 프로세서 경로 설정
+
+```gradle
+tasks.withType(JavaCompile).configureEach {
+    options.annotationProcessorPath = configurations.annotationProcessor
+}
+```
+
+- **annotationProcessorPath**: 모든 Java 컴파일 작업에 대해 애노테이션 프로세서 경로를 설정하여, 필요한 애노테이션 프로세서를 로드할 수 있도록 구성합니다.
+
+### 클린업 설정
+
+```gradle
+clean.doLast {
+    file(generatedDir).deleteDir()
+}
+```
+
+- **clean.doLast**: `clean` 태스크가 완료된 후 `generatedDir` 디렉토리를 삭제하여, 이전 빌드에서 생성된 파일들을 정리합니다.
+
+### 추가 클린 디렉토리 설정
+
+```gradle
+clean {
+    delete file('src/main/generated')
+}
+```
+
+- **clean**: `src/main/generated` 디렉토리를 삭제하여 불필요한 생성 파일들을 정리합니다.
+
+### JUnit 플랫폼 설정
+
+```gradle
+tasks.named('test') {
+    useJUnitPlatform()
+}
+```
+
+- **JUnit Platform 사용**: `test` 태스크가 JUnit 플랫폼을 사용하도록 설정하여 최신 JUnit 5 기능을 사용할 수 있게 합니다.
+
+## 요약
+
+이 설정을 통해 QueryDSL에서 생성된 소스 파일이 `build/generated/sources/annotationProcessor/java/main` 디렉토리에 저장되며, 이 디렉토리가 소스 세트에 포함됩니다. `clean` 태스크에서 불필요한 파일들을 정리하며, JUnit 5 플랫폼을 테스트에 사용하여 테스트 기능을 확장합니다.
+
+각 의존성 설명:
+- **Spring Boot Starters**: `spring-boot-starter-data-jpa`, `spring-boot-starter-thymeleaf`, `spring-boot-starter-web`을 포함하여 JPA, Thymeleaf 템플릿 엔진, 웹 MVC를 지원합니다.
+- **Lombok**: 코드를 줄여주는 라이브러리로, 컴파일 시점에 애노테이션 프로세서가 코드 생성을 돕습니다.
+- **DevTools**: 개발용 도구로, 애플리케이션 자동 재시작을 지원합니다.
+- **MySQL Connector**: MySQL 데이터베이스와 연결하기 위한 드라이버입니다.
+- **SpringDoc OpenAPI**: OpenAPI 문서를 생성하고 웹 UI로 제공하는 라이브러리입니다.
+- **MapStruct**: DTO와 엔티티 간 매핑을 위한 라이브러리입니다.
+- **Jackson Databind**: JSON 직렬화와 역직렬화를 위한 라이브러리입니다.
+- **Liquibase**: 데이터베이스 마이그레이션 관리
+
+
+# QueryDSL 설정
+
+이 문서는 QueryDSL을 사용하기 위한 `QuerydslConfig` 클래스 설정에 대한 설명입니다. 이 설정은 Spring Boot 환경에서 QueryDSL을 사용하는 데 필요한 `JPAQueryFactory` 빈을 제공합니다.
+
+## QuerydslConfig 클래스 설명
+
+`QuerydslConfig` 클래스는 QueryDSL을 사용하기 위한 설정 클래스로, Spring Boot 애플리케이션에서 QueryDSL의 `JPAQueryFactory`를 빈으로 등록하여 의존성 주입을 통해 사용할 수 있도록 합니다.
+
+### 코드 예제
+
+```java
+@Configuration
+public class QuerydslConfig {
+
+    @PersistenceContext
+    EntityManager entityManager;
+
+    @Bean
+    public JPAQueryFactory jpaQueryFactory() {
+        return new JPAQueryFactory(entityManager);
+    }
+}
+```
+
+### 구성 요소 설명
+
+- **@Configuration**: 이 클래스가 Spring의 설정 클래스임을 나타내며, 애플리케이션에서 사용할 빈을 정의합니다.
+  
+- **EntityManager**: JPA에서 데이터베이스와 상호 작용하기 위한 핵심 인터페이스로, `@PersistenceContext` 애노테이션을 통해 주입됩니다.
+
+- **JPAQueryFactory 빈**: `JPAQueryFactory`는 QueryDSL에서 쿼리를 생성하는데 사용되며, `EntityManager`를 인수로 받아 인스턴스를 생성합니다. 이 빈을 사용하여 QueryDSL 기반의 쿼리를 작성할 수 있습니다.
+
+### 사용법
+
+- 이 설정 클래스를 추가하면 `JPAQueryFactory`를 다른 서비스나 레포지토리 클래스에서 의존성 주입을 통해 사용할 수 있습니다.
+- QueryDSL을 사용하여 복잡한 쿼리를 간편하게 작성하고, Spring Data JPA와 함께 사용할 수 있습니다.
+
+## 필요 조건
+
+- **QueryDSL** 라이브러리가 `build.gradle` 파일에 포함되어 있어야 합니다.
+- Spring Data JPA가 프로젝트에 설정되어 있어야 합니다.
+
+이 설정 클래스를 통해 QueryDSL 쿼리를 손쉽게 작성하고 관리할 수 있습니다.
+
+
+## WebConfig 추가
+
+```java
+
+@Configuration
+public class WebConfig implements WebMvcConfigurer {
+
+    /**
+     * CORS 허용 출처 설정:
+     *
+     * origins 속성에 { "http://localhost:8080", "http://localhost:3000" } 두 개의 출처를 지정함으로써,
+     * 이 서버는 http://localhost:8080과 http://localhost:3000에서 오는 요청을 허용하게 됩니다.
+     * 보통 백엔드(Spring 애플리케이션)와 프론트엔드(React나 Vue 등)가 다른 포트에서 개발 서버로 실행될 때 필요합니다.
+     * 예를 들어, Spring Boot 백엔드는 8080 포트, React 개발 서버는 3000 포트에서 각각 실행되는 상황입니다.
+     * 그리고 허용 메소드 정의로 허용된 메소드만 접근 하도록 함
+     *
+     * 안전한 리소스 공유:
+     * CORS 설정을 통해 지정된 출처에서만 리소스에 접근할 수 있게 함으로써, 불필요한 외부 접근을 차단하고 보안을 강화할 수 있습니다.
+     */
+    @Override
+    public void addCorsMappings(CorsRegistry registry) {
+        registry.addMapping("/**") // 모든 경로에 대해 CORS 허용
+                .allowedOrigins("http://localhost:8080", "http://localhost:3000") // 허용할 출처
+                .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS") // 허용할 HTTP 메서드
+                .allowedHeaders("*") // 허용할 헤더
+                .allowCredentials(true); // 인증 정보 허용
+    }
+}
+- 리엑트에서 접근하는 3000 출처 허용
+-  허용 메소드 정의로 허용된 메소드만 접근 하도록 함
+
+
